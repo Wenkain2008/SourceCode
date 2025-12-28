@@ -1,0 +1,127 @@
+# === Config ===
+Wires = 8
+PinList = []
+PinPairList = []
+currentPin = 0
+
+# === Simulation Configuration ===
+
+# Example: Pin 0 is shorted to Pin 2 and Pin 5 is shorted to Pin 7
+SimulatedShorts = {
+}
+
+# Example: Break wire 3 (Pin 3 <-> Pin 11)
+SimulatedBreaks = [3]  # Index in PinPairList
+
+
+# === Setup Functions ===
+
+def create_PinList():
+    global PinList
+    PinList = []
+
+    for i in range(Wires * 2):
+        PinList.append([i, "LOW"])  # [pin_number, voltage_state]
+
+    return "PinList created!"
+
+def create_PinPairList():
+    global PinPairList
+    PinPairList = []
+
+    for i in range(Wires):
+        PinPairList.append([i, i + Wires])  # e.g., [0, 8], [1, 9], ...
+
+    return "PinPairList created!"
+
+# === Pin Simulation ===
+
+def PinMode(Pin, Mode):
+    return f"Pin {Pin} set to {Mode}"
+
+def digitalWrite(Pin, Voltage):
+    PinList[Pin][1] = Voltage
+    return f"Pin {Pin} set to {Voltage}"
+
+def analogRead(Pin):
+    # Simulate short circuits
+    for sourcePin, shortedPins in SimulatedShorts.items():
+        if Pin in shortedPins and PinList[sourcePin][1] == "HIGH":
+            return 1023
+        if Pin == sourcePin:
+            for p in shortedPins:
+                if PinList[p][1] == "HIGH":
+                    return 1023
+
+    # Simulate normal wire connection (if not broken)
+    for idx, pair in enumerate(PinPairList):
+        if idx in SimulatedBreaks:
+            continue  # this wire is broken, skip reading
+        if Pin in pair:
+            other = pair[1] if pair[0] == Pin else pair[0]
+            if PinList[other][1] == "HIGH":
+                return 1023
+
+    return 0
+
+# === Helpers ===
+
+def setCurrentPin(Pin):
+    global currentPin
+    currentPin = Pin
+    return currentPin
+
+def PinModeChange(currentPin):
+    output = []
+    for i in range(Wires * 2):
+        mode = "OUTPUT" if i == currentPin else "INPUT"
+        output.append(PinMode(i, mode))
+    return "\n".join(output)
+
+def VoltageChange(Pin):
+    output = []
+    for i in range(Wires * 2):
+        voltage = "HIGH" if i == Pin else "LOW"
+        output.append(digitalWrite(i, voltage))
+    return "\n".join(output)
+
+def VoltageTest(Pin):
+    sensorValue = analogRead(Pin)
+    voltage = sensorValue * (5.0 / 1023.0)
+    return f"Read on pin {Pin}: {sensorValue}, Voltage: {voltage:.2f}V"
+
+# === Test Logic ===
+
+def TestAllWires():
+    print("===== Starting Wire Test =====")
+    for idx, pinPair in enumerate(PinPairList):
+        outPin = pinPair[0]
+        inPin = pinPair[1]
+
+        print(f"\n🧪 Testing wire {idx}: Pin {outPin} to Pin {inPin}")
+
+        setCurrentPin(outPin)
+        print(PinModeChange(outPin))
+        print(VoltageChange(outPin))
+
+        sensorValue = analogRead(inPin)
+
+        if idx in SimulatedBreaks or sensorValue == 0:
+            print(f"❌ Wire {idx} between Pin {outPin} and Pin {inPin} is BROKEN")
+        else:
+            print(f"✅ Wire {idx} between Pin {outPin} and Pin {inPin} is OK")
+
+        # Check for shorts
+        for i in range(Wires * 2):
+            if i not in pinPair:
+                if analogRead(i) > 0:
+                    print(f"⚠️ SHORT DETECTED: Pin {outPin} is also connected to Pin {i}")
+
+# === Main ===
+
+print(create_PinList())
+print(PinList)
+print(create_PinPairList())
+print(PinPairList)
+
+TestAllWires()
