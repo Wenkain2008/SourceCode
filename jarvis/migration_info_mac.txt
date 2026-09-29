@@ -1,0 +1,111 @@
+Migrating Jarvis to Apple Silicon Mac
+A step-by-step guide for moving your local Jarvis project from Windows to an Apple Silicon Mac (M1/M2/M3/M4). Follow the sections in order — later steps depend on earlier ones.
+
+What transfers directly: your Python code, React code, config, sandbox files, and jarvis.db (SQLite databases are cross-platform binary files — no conversion needed).
+
+What needs fresh setup: Ollama itself, your Python virtual environment, and your Node.js dependencies. None of these copy across operating systems — they get reinstalled/regenerated on the Mac from files that do transfer (requirements.txt, package.json).
+
+1. Copy the project files
+Copy your entire jarvis project folder from the Windows machine to the Mac. Use a USB drive, cloud storage (iCloud Drive, Google Drive, Dropbox), or a direct network transfer — whichever is convenient.
+
+Before copying, exclude these folders — they're OS-specific and will be regenerated fresh on the Mac, so copying them wastes time/space and won't work anyway:
+
+.venv/
+jarvis-ui/node_modules/
+Everything else should come along, including:
+
+main.py, server.py, config.yaml, requirements.txt
+agent/ (all your Python modules)
+sandbox/ (your test files)
+jarvis.db (your actual memory/conversation history — this transfers perfectly as-is)
+jarvis-ui/ (excluding node_modules/, everything else — src/, package.json, index.html, etc.)
+2. Install Homebrew (if you don't have it)
+Homebrew is the standard package manager for macOS — makes installing developer tools straightforward. Open Terminal (Applications → Utilities → Terminal, or search via Spotlight) and check if you already have it:
+
+brew --version
+If that fails, install it:
+
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+Follow any on-screen instructions it gives you at the end (it sometimes asks you to run one or two more commands to finish adding it to your PATH).
+
+3. Install Python
+Check if a recent Python 3 is already available:
+
+python3 --version
+macOS often ships an old or absent Python 3. If you don't have a recent version (3.11+, matching what you used on Windows), install it via Homebrew:
+
+brew install python@3.11
+4. Install Node.js
+Check first:
+
+node --version
+npm --version
+If missing, install via Homebrew:
+
+brew install node
+5. Install Ollama for Mac
+Download the native macOS build from ollama.com/download — it's a normal .dmg installer, drag-and-drop into Applications like any Mac app. Ollama runs as a background service automatically once installed, same as it did on Windows.
+
+Confirm it's working:
+
+ollama --version
+6. Re-pull your models
+Models don't transfer between machines — they need to be downloaded fresh on the Mac. Pull the same ones you were using:
+
+ollama pull qwen2.5:7b-instruct
+ollama pull qwen2.5:14b-instruct
+ollama pull nomic-embed-text
+(Add ollama pull qwen2.5:14b-instruct-q4_0 too if you were using that specific quantized variant.)
+
+Check GPU acceleration is working
+Once pulled, run one interactively and check ollama ps in a second terminal tab/window while it's loaded:
+
+ollama run qwen2.5:14b-instruct
+Then, in another terminal:
+
+ollama ps
+On Apple Silicon, thanks to unified memory, you should see 100% GPU for models that would have split GPU/CPU on your old 8GB Windows card — this is the main practical benefit of the move. Compare directly against what you saw on Windows (36%/64% CPU/GPU for 14B) — a full 100% GPU result here confirms the migration solved that bottleneck.
+
+7. Set up the Python virtual environment
+From inside your copied jarvis folder:
+
+cd path/to/jarvis
+python3 -m venv .venv
+source .venv/bin/activate
+Note the activation command is different from Windows — macOS/Linux use source .venv/bin/activate instead of .venv\Scripts\activate. Once active, you should see (.venv) at the start of your prompt, same as before.
+
+Install your dependencies from the file you already maintained:
+
+pip install -r requirements.txt
+8. Set up the frontend
+cd jarvis-ui
+npm install
+This regenerates node_modules from package.json, pulling down React, Vite, thinking-orbs, and everything else your frontend depends on.
+
+9. Run everything and verify
+Backend (from the jarvis root, with .venv active):
+
+uvicorn server:app --reload
+Frontend (from jarvis-ui, separate terminal tab):
+
+npm run dev
+Open the printed local URL in your browser and confirm:
+
+The chat UI loads and the orb animates (if it doesn't, check System Settings → Accessibility → Display → Reduce Motion isn't enabled — the macOS equivalent of the Windows animation setting that caused this exact issue before)
+Sending a message gets a real reply
+Your existing memories are still there — ask something you know is stored in jarvis.db from your Windows sessions, and confirm Jarvis recalls it correctly
+10. Update config.yaml if you want to take advantage of the better hardware
+Now that models can run fully GPU-accelerated instead of splitting to CPU, it's worth re-testing whether your main model (not just memory_model) can reasonably be 14B instead of 7B — this was previously too slow for live chat on your Windows GPU, but may now be fast enough on Apple Silicon to use as your everyday live model, which would also help with the multi-file synthesis reliability issue you ran into on 7B.
+
+model: "qwen2.5:14b-instruct"
+memory_model: "qwen2.5:14b-instruct"
+Test responsiveness in real conversation and decide from there — if it still feels slow, drop model back to 7b-instruct and keep memory_model on 14b-instruct for background tasks only, exactly as you had it set up before.
+
+Troubleshooting
+ModuleNotFoundError after activating .venv — confirm you're actually inside the activated environment ((.venv) showing in your prompt) before running pip install -r requirements.txt.
+
+Port already in use — if uvicorn or npm run dev complain about a port being taken, another process may already be using it; check for a leftover process from an earlier attempt (lsof -i :8000 or lsof -i :5173 will show what's using those ports).
+
+CORS errors in the browser console — should not occur, since allow_origins=["*"] is already set in server.py and isn't OS-specific, but if it does happen, confirm the backend is actually running and reachable at http://127.0.0.1:8000.
+
+Sandbox path issues — your SANDBOX_DIR = Path("sandbox").resolve() logic in agent/tools.py uses pathlib, which is cross-platform by design, so this should work identically on macOS without any code changes. If file tools can't find sandbox/, it's almost certainly because you're running uvicorn/python from the wrong working directory — same class of issue you hit once on Windows.
