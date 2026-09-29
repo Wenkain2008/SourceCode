@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jarvis</title>
+</head>
+<body>
+    <div id="chat-log"></div>
+
+    <input type="text" id="user-input" placeholder="Type a message...">
+    <button id="send-button">Send</button>
+    <button id="end-session-button">End Session</button>
+
+    <script>
+    const chatLog = document.getElementById("chat-log");
+    const userInput = document.getElementById("user-input");
+    const sendButton = document.getElementById("send-button");
+    const endSessionButton = document.getElementById("end-session-button");
+
+    
+    async function sendMessage() {
+        const message = userInput.value;
+        if (!message) return;
+
+        addMessageToLog("You", message);
+        userInput.value = "";
+
+        const response = await fetch("http://127.0.0.1:8000/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: message })
+        });
+
+        const data = await response.json();
+        addMessageToLog("Jarvis", data.reply);
+    }
+
+    function addMessageToLog(sender, text) {
+        const p = document.createElement("p");
+        p.textContent = sender + ": " + text;
+        chatLog.appendChild(p);
+    }
+
+    async function endSession() {
+        endSessionButton.disabled = true;
+
+        const response = await fetch("http://127.0.0.1:8000/end_session", {
+            method: "POST"
+        });
+        const data = await response.json();
+        chatLog.innerHTML = "";
+        addMessageToLog("System", data.message);
+
+        endSessionButton.disabled = false;
+    }
+
+
+    endSessionButton.addEventListener("click", endSession);
+    sendButton.addEventListener("click", sendMessage);
+    </script>
+</body>
+</html>
