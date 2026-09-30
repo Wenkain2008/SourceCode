@@ -12,3 +12,6 @@ def chat(messages, model, tools = None):
 def get_embedding(text):
     response = ollama.embed(model="nomic-embed-text", input=text)
     return response["embeddings"][0]
+
+def unload_model(model):
+    ollama.chat(model=model, messages=[], keep_alive=0)

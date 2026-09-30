@@ -4,8 +4,8 @@ import yaml
 import json
 import uuid
 
-from agent.llm import chat
 from agent.tools import open_application, read_text_file, list_directory, file_info, tools
+from agent.llm import chat, unload_model
 from agent.memory import save_message, search_similar, extract_memory_chunks, process_memory_chunk, init_db
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -31,6 +31,7 @@ available_tools = {
 
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
+print("DEBUG: config loaded as:", config)
 
 messages = [{"role": "system", "content": config["system_prompt"]}]
 session_id = str(uuid.uuid4())
@@ -63,12 +64,22 @@ def run_agent_loop(messages, model):
                 result = f"Error: the tool call failed — {str(e)}"
 
             if not isinstance(result, str):
-                result = json.dumps(result)
-
+                        result = json.dumps(result)
+        
             print(f"DEBUG: tool result for {name} = {result!r}")   # <-- add this
 
             messages.append({"role": "tool", "content": result})
             save_message(session_id, "tool", result)
+
+            if isinstance(result, str) and result.startswith("GAME_LAUNCHED:"):
+                unload_model(config["model"])
+                unload_model(config["memory_model"])
+                summarize_and_reset_session()
+                result = "Game launched. Session ended and resources freed for gaming."
+
+                return {"message": {"role": "assistant", "content": result}}
+
+           
 
     return response
 

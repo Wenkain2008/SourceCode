@@ -5,19 +5,22 @@ from pathlib import Path
 SANDBOX_DIR = Path("sandbox").resolve()
 
 ALLOWED_APPS = {
-    "notepad": "notepad.exe",
-    "calculator": "calc.exe",
-    "wardogs": "steam://run/1867240",
-    "ready or not": "steam://run/1144200",
-    "brave": "brave.exe",
-    
+    "notepad": {"path": "notepad.exe", "is_game": False},
+    "calculator": {"path": "calc.exe", "is_game": False},
+    "wardogs": {"path": "steam://run/1867240", "is_game": True},
+    "ready or not": {"path": "steam://run/1144200", "is_game": True},
+    "brave": {"path": "brave.exe", "is_game": False},
 }
-
+    
 def open_application(app_name):
     if app_name not in ALLOWED_APPS:
         raise ValueError(f"'{app_name}' is not in the list of allowed applications.")
 
-    os.startfile(ALLOWED_APPS[app_name])
+    app = ALLOWED_APPS[app_name]
+    os.startfile(app["path"])
+
+    if app["is_game"]:
+        return "GAME_LAUNCHED:" + app_name
     return f"Opened {app_name}."
 
 
